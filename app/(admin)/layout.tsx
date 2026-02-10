@@ -1,5 +1,5 @@
-import { Sidebar } from '@/components/dashboard/Sidebar';
 import { Header } from '@/components/dashboard/Header';
+import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 
 export default function AdminLayout({
     children,
@@ -7,19 +7,12 @@ export default function AdminLayout({
     children: React.ReactNode
 }) {
     return (
-        <div className="flex h-screen bg-gray-50 text-gray-900 font-sans">
-            {/* Sidebar */}
-            <Sidebar />
+        <DashboardLayout>
+            <Header />
 
-            {/* Main Content */}
-            <main className="flex-1 overflow-auto bg-gray-50/50">
-                {/* Mobile Header */}
-                <Header />
-
-                <div className="max-w-7xl mx-auto p-6 md:p-8">
-                    {children}
-                </div>
-            </main>
-        </div>
+            <div className="max-w-7xl mx-auto p-6 md:p-8">
+                {children}
+            </div>
+        </DashboardLayout>
     )
 }
