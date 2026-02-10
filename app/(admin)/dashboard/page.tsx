@@ -1,86 +1,112 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { StatsCard } from "@/components/dashboard/StatsCard";
-import { RecentOrders } from "@/components/dashboard/RecentOrders";
-import { LowStockAlert } from "@/components/dashboard/LowStockAlert";
-import { ShoppingCart, AlertCircle, Package } from "lucide-react";
+import { ShoppingBag, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import Link from "next/link";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { format } from "date-fns";
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-    let pedidosCount = 0;
-    let pendingCount = 0;
-    let stockLowCount = 0;
-    let recentOrders: any[] = [];
-    let lowStockProducts: any[] = [];
+    const admin = getSupabaseAdmin();
 
-    try {
-        const admin = getSupabaseAdmin();
+    // Fetch Stats
+    const { count: totalPedidos } = await admin
+        .from('pedidos')
+        .select('*', { count: 'exact', head: true });
 
-        // Parallel fetch
-        const [pedidosRes, pendingRes, stockRes, recentRes, lowStockRes] = await Promise.all([
-            admin.from('pedidos').select('*', { count: 'exact', head: true }),
-            admin.from('pedidos').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
-            admin.from('productos').select('*', { count: 'exact', head: true }).lt('stock', 5),
-            admin.from('pedidos').select('*, productos(nombre)').order('created_at', { ascending: false }).limit(5),
-            admin.from('productos').select('*').lt('stock', 5).order('stock', { ascending: true }).limit(5)
-        ]);
+    const { count: pendientes } = await admin
+        .from('pedidos')
+        .select('*', { count: 'exact', head: true })
+        .eq('estado', 'pendiente');
 
-        pedidosCount = pedidosRes.count || 0;
-        pendingCount = pendingRes.count || 0;
-        stockLowCount = stockRes.count || 0;
-        recentOrders = recentRes.data || [];
-        lowStockProducts = lowStockRes.data || [];
+    const { count: lowStock } = await admin
+        .from('variantes')
+        .select('*', { count: 'exact', head: true })
+        .lt('stock', 5);
 
-    } catch (error) {
-        console.error("Dashboard fetch error (likely missing env vars):", error);
-    }
+    // Recent Orders
+    const { data: recentOrders } = await admin
+        .from('pedidos')
+        .select('*, variantes(sku, productos(nombre))')
+        .order('created_at', { ascending: false })
+        .limit(5);
 
     return (
-        <div className="space-y-8 animate-in fade-in zoom-in duration-500">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-4xl font-black tracking-tight text-gray-900">Dashboard</h1>
-                    <p className="text-muted-foreground mt-2">Bienvenido al panel de administración de LOAR.</p>
-                </div>
-                <div className="text-sm text-gray-500 font-medium bg-white px-3 py-1 rounded-full border shadow-sm">
-                    {new Date().toLocaleDateString('es-EC', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </div>
+        <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+            <div>
+                <h1 className="text-3xl font-black tracking-tight">Dashboard</h1>
+                <p className="text-muted-foreground">Resumen de actividad.</p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
                 <StatsCard
                     title="Pedidos Totales"
-                    value={pedidosCount}
-                    icon={<ShoppingCart className="h-4 w-4" />}
-                    description="Total histórico"
-                    className="border-blue-100 bg-blue-50/50"
+                    value={totalPedidos || 0}
+                    icon={ShoppingBag}
+                    description="Histórico"
                 />
                 <StatsCard
                     title="Pendientes de Pago"
-                    value={pendingCount}
-                    icon={<AlertCircle className="h-4 w-4 text-orange-500" />}
+                    value={pendientes || 0}
+                    icon={Clock}
                     description="Requieren atención"
-                    className="border-orange-100 bg-orange-50/50"
-                    trendUp={pendingCount === 0}
                 />
                 <StatsCard
-                    title="Alertas de Stock"
-                    value={stockLowCount}
-                    icon={<Package className="h-4 w-4 text-red-500" />}
-                    description="Productos con stock bajo"
-                    className="border-red-100 bg-red-50/50"
-                    trendUp={stockLowCount === 0}
+                    title="Stock Bajo"
+                    value={lowStock || 0}
+                    icon={AlertTriangle}
+                    description="Variantes con < 5 unidades"
                 />
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                <div className="md:col-span-4 lg:col-span-4">
-                    <RecentOrders orders={recentOrders} />
+            <div className="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-lg font-bold">Pedidos Recientes</h2>
+                    <Link href="/dashboard/pedidos" className="text-sm font-medium text-blue-600 hover:underline">Ver todos</Link>
                 </div>
-                <div className="md:col-span-2 lg:col-span-3">
-                    <LowStockAlert products={lowStockProducts} />
-                </div>
+
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead>Cliente</TableHead>
+                            <TableHead>Producto</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead>Estado</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {recentOrders?.map((order: any) => (
+                            <TableRow key={order.id}>
+                                <TableCell className="text-gray-500 text-xs">
+                                    {format(new Date(order.created_at), 'dd/MM HH:mm')}
+                                </TableCell>
+                                <TableCell className="font-medium">{order.cliente_nombre}</TableCell>
+                                <TableCell className="text-sm">
+                                    {order.variantes?.productos?.nombre} <span className="text-gray-400 text-xs">({order.variantes?.sku})</span>
+                                </TableCell>
+                                <TableCell className="font-bold">${order.total}</TableCell>
+                                <TableCell>
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold capitalize 
+                                        ${order.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700' :
+                                            order.estado === 'pagado' ? 'bg-green-100 text-green-700' :
+                                                order.estado === 'en_produccion' ? 'bg-blue-100 text-blue-700' :
+                                                    order.estado === 'cancelado' ? 'bg-red-100 text-red-700' :
+                                                        'bg-gray-100 text-gray-700'}`}>
+                                        {order.estado.replace('_', ' ')}
+                                    </span>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                        {(!recentOrders || recentOrders.length === 0) && (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-gray-400 italic">No hay pedidos recientes.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
             </div>
         </div>
-    )
+    );
 }

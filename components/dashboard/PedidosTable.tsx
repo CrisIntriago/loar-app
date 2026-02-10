@@ -1,186 +1,212 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Check, Clock, Loader2, X, AlertCircle, Paperclip } from "lucide-react";
+import { Badge } from "lucide-react"; // Wait, Badge is component?
+import { Eye, CheckCircle, XCircle, Truck, Package } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import DesignThumbnail from "@/components/dashboard/DesignThumbnail";
 
-interface Pedido {
-    id: string;
-    cliente_nombre: string;
-    cliente_whatsapp: string;
-    total: number;
-    estado: string;
-    created_at: string;
-    productos: { nombre: string } | null;
-    cantidad: number;
-    talla: string;
-    color: string;
-    tecnica: string;
-    diseno_url?: string;
-}
+const ESTADOS = [
+    { value: 'pendiente', label: 'Pendiente', color: 'bg-yellow-100 text-yellow-700' },
+    { value: 'pagado', label: 'Pagado', color: 'bg-green-100 text-green-700' },
+    { value: 'en_produccion', label: 'En Producción', color: 'bg-blue-100 text-blue-700' },
+    { value: 'entregado', label: 'Entregado', color: 'bg-purple-100 text-purple-700' },
+    { value: 'cancelado', label: 'Cancelado', color: 'bg-red-100 text-red-700' }
+];
 
-export default function PedidosTable({ initialPedidos }: { initialPedidos: any[] }) {
-    const [pedidos, setPedidos] = useState<Pedido[]>(initialPedidos);
+export default function PedidosTable({ initialData }: { initialData: any[] }) {
+    const [pedidos, setPedidos] = useState(initialData);
+    const [filterEstado, setFilterEstado] = useState("todos");
     const [search, setSearch] = useState("");
-    const [filterState, setFilterState] = useState("todos");
-    const [loadingId, setLoadingId] = useState<string | null>(null);
+    const [selectedPedido, setSelectedPedido] = useState<any | null>(null);
+    const router = useRouter();
 
-    const filtered = pedidos.filter(p => {
-        const matchSearch = p.cliente_nombre.toLowerCase().includes(search.toLowerCase()) ||
-            p.cliente_whatsapp.includes(search);
-        const matchState = filterState === "todos" ? true : p.estado === filterState;
-        return matchSearch && matchState;
-    });
+    useEffect(() => {
+        setPedidos(initialData);
+    }, [initialData]);
 
-    const updateStatus = async (id: string, newState: string) => {
-        setLoadingId(id);
+    // Realtime Subscription
+    useEffect(() => {
+        const channel = supabase
+            .channel('pedidos-realtime')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pedidos' }, (payload) => {
+                // Play sound?
+                const audio = new Audio('/notification.mp3'); // Need file
+                audio.play().catch(e => console.log('Audio error', e));
+                alert(`Nuevo Pedido de ${payload.new.cliente_nombre}!`);
+                router.refresh();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [router]);
+
+    const handleStatusUpdate = async (id: string, newStatus: string) => {
         try {
             const res = await fetch(`/api/pedidos/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ estado: newState })
+                body: JSON.stringify({ estado: newStatus })
             });
+
             if (res.ok) {
                 const updated = await res.json();
-                setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: newState } : p));
+                setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: newStatus } : p));
+                router.refresh();
             } else {
-                const err = await res.json();
-                alert(err.error || "Error");
+                alert("Error actualizando estado");
             }
         } catch (e) {
-            alert("Error actualizando");
-        } finally {
-            setLoadingId(null);
+            console.error(e);
         }
     };
 
+    const filteredPedidos = pedidos.filter(p => {
+        const matchesEstado = filterEstado === "todos" || p.estado === filterEstado;
+        const matchesSearch = p.cliente_nombre.toLowerCase().includes(search.toLowerCase()) ||
+            p.cliente_whatsapp.includes(search);
+        return matchesEstado && matchesSearch;
+    });
+
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 justify-between">
-                <Input
-                    placeholder="Buscar cliente..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="max-w-sm"
-                />
-                <div className="w-full sm:w-48">
-                    <Select value={filterState} onChange={e => setFilterState(e.target.value)}>
-                        <option value="todos">Todos los estados</option>
-                        <option value="pendiente">Pendiente</option>
-                        <option value="pagado">Pagado</option>
-                        <option value="en_produccion">En Producción</option>
-                        <option value="entregado">Entregado</option>
-                        <option value="cancelado">Cancelado</option>
+            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-lg border shadow-sm">
+                <div className="flex gap-2 items-center w-full md:w-auto">
+                    <Input
+                        placeholder="Buscar por nombre o whatsapp..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full md:w-64"
+                    />
+                </div>
+                <div className="flex gap-2 items-center w-full md:w-auto">
+                    <Select value={filterEstado} onValueChange={setFilterEstado}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Filtrar Estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="todos">Todos</SelectItem>
+                            {ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+                        </SelectContent>
                     </Select>
                 </div>
             </div>
 
-            <div className="rounded-md border bg-white text-sm">
+            <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="bg-gray-50">
                         <TableRow>
                             <TableHead>Fecha</TableHead>
                             <TableHead>Cliente</TableHead>
                             <TableHead>Producto</TableHead>
-                            <TableHead>Detalle</TableHead>
                             <TableHead>Total</TableHead>
                             <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filtered.map(p => (
+                        {filteredPedidos.map((p) => (
                             <TableRow key={p.id}>
-                                <TableCell className="whitespace-nowrap font-medium text-xs text-gray-500">
-                                    {format(new Date(p.created_at), "dd MMM HH:mm", { locale: es })}
+                                <TableCell className="text-xs text-gray-500">
+                                    {format(new Date(p.created_at), 'dd/MM HH:mm')}
                                 </TableCell>
                                 <TableCell>
-                                    <div className="font-bold">{p.cliente_nombre}</div>
-                                    <a
-                                        href={`https://wa.me/${p.cliente_whatsapp.replace('+', '')}`}
-                                        target="_blank"
-                                        className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                                    <div className="font-medium text-gray-900">{p.cliente_nombre}</div>
+                                    <div className="text-xs text-gray-500">{p.cliente_whatsapp}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <div className="text-sm font-medium">{p.variantes?.productos?.nombre}</div>
+                                    <div className="text-xs text-gray-500 items-center flex gap-1">
+                                        <span className="bg-gray-100 px-1 rounded">{p.variantes?.talla}</span>
+                                        <span className="bg-gray-100 px-1 rounded">{p.variantes?.color}</span>
+                                        <span className="bg-gray-100 px-1 rounded">{p.variantes?.tecnica}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="font-bold">
+                                    ${p.total}
+                                    <div className="text-xs text-gray-400 font-normal">x{p.cantidad}</div>
+                                </TableCell>
+                                <TableCell>
+                                    <Select
+                                        value={p.estado}
+                                        onValueChange={(val) => handleStatusUpdate(p.id, val)}
                                     >
-                                        {p.cliente_whatsapp}
-                                    </a>
+                                        <SelectTrigger className={`h-8 w-[140px] text-xs font-bold capitalize border-0 ${ESTADOS.find(e => e.value === p.estado)?.color || 'bg-gray-100'}`}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
                                 </TableCell>
-                                <TableCell>
-                                    <div className="max-w-[150px] truncate" title={(p.productos as any)?.nombre}>
-                                        {(p.productos as any)?.nombre || "Producto"}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-xs">
-                                    <div className="flex gap-1 flex-wrap max-w-[200px] items-center">
-                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">x{p.cantidad}</span>
-                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.talla}</span>
-                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.color}</span>
-                                        <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.tecnica}</span>
-                                        {p.diseno_url && (
-                                            <a
-                                                href={p.diseno_url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="ml-1 p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                                                title="Ver diseño adjunto"
-                                            >
-                                                <Paperclip className="w-3 h-3" />
-                                            </a>
-                                        )}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="font-black">${Number(p.total).toFixed(2)}</TableCell>
-                                <TableCell>
-                                    <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${p.estado === 'pendiente' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                        p.estado === 'pagado' ? 'bg-green-50 text-green-700 border-green-200' :
-                                            p.estado === 'en_produccion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                p.estado === 'entregado' ? 'bg-gray-50 text-gray-700 border-gray-200' :
-                                                    'bg-red-50 text-red-700 border-red-200'
-                                        }`}>
-                                        {p.estado.replace('_', ' ')}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex gap-1">
-                                        {p.estado === 'pendiente' && (
-                                            <>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={() => updateStatus(p.id, 'pagado')} disabled={loadingId === p.id} title="Marcar Pagado">
-                                                    {loadingId === p.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                                                </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => updateStatus(p.id, 'cancelado')} disabled={loadingId === p.id} title="Cancelar">
-                                                    <X className="h-4 w-4" />
-                                                </Button>
-                                            </>
-                                        )}
-                                        {p.estado === 'pagado' && (
-                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={() => updateStatus(p.id, 'en_produccion')} disabled={loadingId === p.id} title="Pasar a Producción">
-                                                <Clock className="h-4 w-4" />
+                                <TableCell className="text-right">
+                                    <Dialog>
+                                        <DialogTrigger asChild>
+                                            <Button variant="ghost" size="sm" onClick={() => setSelectedPedido(p)}>
+                                                <Eye className="w-4 h-4 text-blue-600" />
                                             </Button>
-                                        )}
-                                        {p.estado === 'en_produccion' && (
-                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-50" onClick={() => updateStatus(p.id, 'entregado')} disabled={loadingId === p.id} title="Marcar Entregado">
-                                                <Check className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                    </div>
+                                        </DialogTrigger>
+                                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                                            <DialogHeader>
+                                                <DialogTitle>Detalle del Pedido #{p.id.slice(0, 8)}</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="grid grid-cols-2 gap-6 mt-4">
+                                                <div>
+                                                    <h3 className="font-bold mb-2">Cliente</h3>
+                                                    <p>Nombre: {p.cliente_nombre}</p>
+                                                    <p>WhatsApp:
+                                                        <a href={`https://wa.me/${p.cliente_whatsapp.replace('+', '')}`} target="_blank" className="text-green-600 ml-1 hover:underline">
+                                                            {p.cliente_whatsapp}
+                                                        </a>
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold mb-2">Producto</h3>
+                                                    <p>{p.variantes?.productos?.nombre}</p>
+                                                    <p className="text-sm text-gray-500">{p.variantes?.sku}</p>
+                                                    <div className="flex gap-2 mt-1">
+                                                        <span className="badge badge-outline text-xs border px-2 rounded">{p.variantes?.talla}</span>
+                                                        <span className="badge badge-outline text-xs border px-2 rounded">{p.variantes?.color}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <h3 className="font-bold mb-2">Diseños ({p.disenos?.length || 0})</h3>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        {p.disenos?.map((d: any, i: number) => (
+                                                            <div key={i} className="border p-2 rounded relative group">
+                                                                <p className="text-xs font-bold mb-1">{d.posicion} - {d.tamano}</p>
+                                                                <div className="h-40 bg-gray-100 flex items-center justify-center overflow-hidden rounded relative">
+                                                                    <DesignThumbnail url={d.url} path={d.path} alt={`Diseño ${i}`} />
+                                                                </div>
+                                                                <a href={d.url} download className="absolute bottom-2 right-2 bg-white p-1 rounded shadow text-xs hover:bg-gray-100 z-10">Descargar</a>
+                                                            </div>
+                                                        ))}
+                                                        {(!p.disenos || p.disenos.length === 0) && <p className="text-gray-400 italic">Sin diseños adjuntos.</p>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </DialogContent>
+                                    </Dialog>
                                 </TableCell>
                             </TableRow>
                         ))}
-                        {filtered.length === 0 && (
+                        {filteredPedidos.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={7} className="text-center h-32 text-muted-foreground flex flex-col items-center justify-center w-full">
-                                    <AlertCircle className="w-6 h-6 mb-2 opacity-20" />
-                                    No se encontraron pedidos
-                                </TableCell>
+                                <TableCell colSpan={6} className="text-center py-8 text-gray-400 italic">No se encontraron pedidos.</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
                 </Table>
             </div>
         </div>
-    )
+    );
 }

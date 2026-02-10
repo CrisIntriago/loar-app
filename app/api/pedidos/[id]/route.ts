@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase';
+import { Database } from '@/types/database';
 
+// Define explicit type for the joined query result
+// Base type is Pedido, but we need to tell TS about the joined relation
+type Pedido = Database['public']['Tables']['pedidos']['Row'];
+type PedidoConVariante = Pedido & {
+    variantes: {
+        stock: number;
+    } | null;
+};
+
+// PATCH: Actualizar estado de pedido
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
     try {
         const body = await request.json();
@@ -8,32 +19,33 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         const { id } = params;
         const admin = getSupabaseAdmin();
 
-        // 1. Obtener pedido actual con datos de producto
-        const { data: pedido, error: fetchError } = await admin
+        // 1. Obtener pedido actual
+        const { data: pedidoData, error: fetchError } = await admin
             .from('pedidos')
-            .select('*, productos(stock)')
+            .select(`
+                *,
+                variantes (stock)
+            `)
             .eq('id', id)
             .single();
 
-        if (fetchError || !pedido) {
+        if (fetchError || !pedidoData) {
             return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 });
         }
 
-        const productoasociado = (pedido as any).productos;
+        const pedido = pedidoData as unknown as PedidoConVariante;
+        const variante = pedido.variantes;
 
         // 2. Lógica de cambio de estado a 'pagado' -> decrementar stock
         if (estado === 'pagado' && pedido.estado !== 'pagado') {
-            // Verificar stock
-            const stockActual = productoasociado?.stock || 0;
-            if (stockActual < pedido.cantidad) {
-                return NextResponse.json({ error: `Stock insuficiente (${stockActual}) para aprobar pedido` }, { status: 400 });
-            }
+            const stockActual = variante?.stock || 0;
+            const newStock = Math.max(0, stockActual - pedido.cantidad);
 
             // Decrementar stock
             const { error: stockError } = await admin
-                .from('productos')
-                .update({ stock: stockActual - pedido.cantidad })
-                .eq('id', pedido.producto_id);
+                .from('variantes')
+                .update({ stock: newStock })
+                .eq('id', pedido.variante_id);
 
             if (stockError) throw stockError;
 
@@ -41,10 +53,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
             await admin.from('historial_acciones').insert({
                 usuario_id: 'system',
                 accion: 'actualizo_stock',
-                entidad_tipo: 'producto',
-                entidad_id: pedido.producto_id,
+                entidad_tipo: 'variante',
+                entidad_id: pedido.variante_id,
                 detalles: { cambio: -pedido.cantidad, motivo: `Pedido ${id} pagado` }
-            });
+            } as any);
         }
 
         // 3. Actualizar pedido
@@ -62,17 +74,40 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
         // 4. Historial pedido
         await admin.from('historial_acciones').insert({
-            usuario_id: 'admin_user',
+            usuario_id: 'admin',
             accion: 'aprobo_pago',
             entidad_tipo: 'pedido',
             entidad_id: id,
             detalles: { estado_anterior: pedido.estado, nuevo_estado: estado }
-        });
+        } as any);
 
         return NextResponse.json(updatedOrder);
 
     } catch (e: any) {
-        console.error("Error patching pedido:", e);
+        console.error("Error updating order:", e);
+        return NextResponse.json({ error: e.message }, { status: 500 });
+    }
+}
+
+// GET: Detalle Pedido
+export async function GET(request: Request, { params }: { params: { id: string } }) {
+    try {
+        const admin = getSupabaseAdmin();
+        const { data, error } = await admin
+            .from('pedidos')
+            .select(`
+                *,
+                variantes (
+                    sku,
+                    productos (nombre, categoria, imagen_url)
+                )
+            `)
+            .eq('id', params.id)
+            .single();
+
+        if (error) throw error;
+        return NextResponse.json(data);
+    } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
 }

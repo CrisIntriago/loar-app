@@ -2,200 +2,218 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { X, Plus, Loader2, Trash2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PlusCircle, Loader2, Image as ImageIcon } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
-export default function NuevoProductoModal({ onCreated }: { onCreated: () => void }) {
-    const [isOpen, setIsOpen] = useState(false);
+const TALLAS = ["S", "M", "L", "XL", "XXL", "Única"];
+const COLORES = ["Blanco", "Negro", "Gris", "Azul", "Rojo", "Verde", "Amarillo", "Rosado"];
+const TECNICAS = ["DTF", "Bordado", "Sublimado", "Llano"];
+const CATEGORIAS = ['camiseta', 'crop_top', 'ranglan', 'oversize', 'polo', 'hoodie', 'buzo', 'boxer', 'pijama', 'almohada', 'taza'];
+
+export default function NuevoProductoModal({ onCreated }: { onCreated: (product: any) => void }) {
+    const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [nombre, setNombre] = useState("");
+    const [categoria, setCategoria] = useState("");
+    const [descripcion, setDescripcion] = useState("");
+    const [tallas, setTallas] = useState<string[]>([]);
+    const [colores, setColores] = useState<string[]>([]);
+    const [tecnicas, setTecnicas] = useState<string[]>([]);
+    const [imageFile, setImageFile] = useState<File | null>(null);
+    const [imageUrl, setImageUrl] = useState("");
 
-    const [form, setForm] = useState({
-        nombre: "",
-        categoria: "camiseta",
-        precio_base: "",
-        stock: "",
-        tallas: "S,M,L,XL",
-        colores: "Blanco,Negro",
-        tecnicas: "dtf,bordado"
-    });
+    const handleUpload = async (file: File) => {
+        setLoading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'productos');
 
-    const [precios, setPrecios] = useState<{ min: string, max: string, precio: string }[]>([]);
-
-    const addPrecioRow = () => {
-        setPrecios([...precios, { min: "", max: "", precio: "" }]);
-    };
-
-    const updatePrecioRow = (index: number, field: 'min' | 'max' | 'precio', value: string) => {
-        const newPrecios = [...precios];
-        newPrecios[index][field] = value;
-        setPrecios(newPrecios);
-    };
-
-    const removePrecioRow = (index: number) => {
-        setPrecios(precios.filter((_, i) => i !== index));
+        try {
+            const res = await fetch('/api/upload/disenos', { // Reusing upload route but specifying bucket
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            if (data.url) {
+                setImageUrl(data.url);
+            }
+        } catch (e) {
+            console.error("Upload failed", e);
+            alert("Error subiendo imagen");
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
+
         try {
             const payload = {
-                ...form,
-                precio_base: parseFloat(form.precio_base),
-                stock: parseInt(form.stock),
-                tallas: form.tallas.split(',').map(s => s.trim()),
-                colores: form.colores.split(',').map(s => s.trim()),
-                tecnicas: form.tecnicas.split(',').map(s => s.trim()),
-                precios: precios.filter(p => p.min && p.precio).map(p => ({
-                    cantidad_minima: parseInt(p.min),
-                    cantidad_maxima: p.max ? parseInt(p.max) : null,
-                    precio_unitario: parseFloat(p.precio)
-                }))
+                nombre,
+                categoria,
+                descripcion,
+                tallas,
+                colores,
+                tecnicas,
+                imagen_url: imageUrl,
+                activo: true
             };
 
-            const res = await fetch('/api/inventario', {
+            const res = await fetch('/api/productos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
             if (res.ok) {
-                setIsOpen(false);
-                onCreated();
-                setForm({ nombre: "", categoria: "camiseta", precio_base: "", stock: "", tallas: "S,M,L,XL", colores: "Blanco,Negro", tecnicas: "dtf,bordado" });
-                setPrecios([]);
+                const newProduct = await res.json();
+                onCreated(newProduct);
+                setOpen(false);
+                // Reset form
+                setNombre(""); setCategoria(""); setDescripcion(""); setTallas([]); setColores([]); setTecnicas([]); setImageUrl(""); setImageFile(null);
             } else {
-                alert("Error al crear");
+                alert("Error al crear producto");
             }
-        } catch (err) {
-            console.error(err);
+        } catch (e) {
+            console.error(e);
+            alert("Error de conexión");
         } finally {
             setLoading(false);
         }
     };
 
-    if (!isOpen) {
-        return <Button onClick={() => setIsOpen(true)} className="bg-black text-white"><Plus className="w-4 h-4 mr-2" /> Nuevo Producto</Button>
-    }
+    const toggleSelection = (item: string, list: string[], setList: (l: string[]) => void) => {
+        if (list.includes(item)) {
+            setList(list.filter(i => i !== item));
+        } else {
+            setList([...list, item]);
+        }
+    };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-black tracking-tight">Nuevo Producto</h2>
-                    <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="w-5 h-5" /></button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button className="bg-black text-white hover:bg-gray-800 shadow-lg shadow-black/20 transition-all active:scale-95">
+                    <PlusCircle className="mr-2 h-4 w-4" /> Nuevo Producto
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-black tracking-tight">Crear Nuevo Producto</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-6 py-4">
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium">Nombre</label>
-                            <Input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} required placeholder="Ej. Camsera Oversize" />
+                        <div className="space-y-2 col-span-2 md:col-span-1">
+                            <Label>Nombre</Label>
+                            <Input value={nombre} onChange={e => setNombre(e.target.value)} required placeholder="Ej: Camiseta Oversize" />
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium">Categoría</label>
-                            <Select value={form.categoria} onChange={e => setForm({ ...form, categoria: e.target.value })}>
-                                {['camiseta', 'crop_top', 'ranglan', 'oversize', 'polo', 'hoodie', 'buzo', 'boxer', 'pijama', 'almohada', 'taza'].map(c => (
-                                    <option key={c} value={c}>{c}</option>
-                                ))}
+                        <div className="space-y-2 col-span-2 md:col-span-1">
+                            <Label>Categoría</Label>
+                            <Select onValueChange={setCategoria} required>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {CATEGORIAS.map(c => <SelectItem key={c} value={c} className="capitalize">{c.replace('_', ' ')}</SelectItem>)}
+                                </SelectContent>
                             </Select>
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium">Precio Base ($)</label>
-                            <Input type="number" step="0.01" value={form.precio_base} onChange={e => setForm({ ...form, precio_base: e.target.value })} required />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-sm font-medium">Stock Inicial</label>
-                            <Input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
-                        </div>
-                    </div>
-
-                    <div className="bg-gray-50 p-4 rounded-lg space-y-4">
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-sm font-bold text-gray-700">Precios Mayoristas (Escalas)</h3>
-                            <Button type="button" variant="outline" size="sm" onClick={addPrecioRow} className="h-7 text-xs">+ Agregar</Button>
+                        <div className="space-y-2 col-span-2">
+                            <Label>Descripción</Label>
+                            <Textarea value={descripcion} onChange={e => setDescripcion(e.target.value)} placeholder="Detalles del producto..." />
                         </div>
 
-                        <div className="space-y-2">
-                            {precios.length > 0 && (
-                                <div className="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 px-1">
-                                    <div className="col-span-3">Min</div>
-                                    <div className="col-span-3">Max</div>
-                                    <div className="col-span-4">Precio</div>
-                                    <div className="col-span-2"></div>
+                        {/* Image Upload */}
+                        <div className="space-y-2 col-span-2">
+                            <Label>Imagen Principal</Label>
+                            <div className="flex items-center gap-4">
+                                <div className="w-24 h-24 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-gray-400 transition-colors">
+                                    {imageUrl ? (
+                                        <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <ImageIcon className="w-8 h-8 text-gray-400" />
+                                    )}
+                                    <input
+                                        type="file"
+                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                        accept="image/*"
+                                        onChange={(e) => {
+                                            if (e.target.files?.[0]) handleUpload(e.target.files[0]);
+                                        }}
+                                    />
+                                    {loading && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><Loader2 className="w-6 h-6 text-white animate-spin" /></div>}
                                 </div>
-                            )}
-                            {precios.map((p, i) => (
-                                <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                                    <div className="col-span-3">
-                                        <Input
-                                            type="number"
-                                            value={p.min}
-                                            onChange={e => updatePrecioRow(i, 'min', e.target.value)}
-                                            placeholder="Min"
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="col-span-3">
-                                        <Input
-                                            type="number"
-                                            value={p.max}
-                                            onChange={e => updatePrecioRow(i, 'max', e.target.value)}
-                                            placeholder="Inf"
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="col-span-4">
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={p.precio}
-                                            onChange={e => updatePrecioRow(i, 'precio', e.target.value)}
-                                            placeholder="$"
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                    <div className="col-span-2 text-right">
-                                        <Button type="button" variant="ghost" size="icon" onClick={() => removePrecioRow(i)} className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600">
-                                            <Trash2 className="w-3 h-3" />
-                                        </Button>
-                                    </div>
+                                <div className="text-xs text-gray-500">
+                                    <p>Sube una imagen representativa.</p>
+                                    <p>Formatos: JPG, PNG.</p>
                                 </div>
-                            ))}
-                            {precios.length === 0 && (
-                                <p className="text-xs text-gray-400 italic text-center py-2">No hay escalas definidas.</p>
-                            )}
+                            </div>
+                        </div>
+
+                        {/* Multi-Selects */}
+                        <div className="space-y-2 col-span-2">
+                            <Label>Tallas Disponibles</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {TALLAS.map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => toggleSelection(t, tallas, setTallas)}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${tallas.includes(t) ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 col-span-2">
+                            <Label>Colores Disponibles</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {COLORES.map(c => (
+                                    <button
+                                        key={c}
+                                        type="button"
+                                        onClick={() => toggleSelection(c, colores, setColores)}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${colores.includes(c) ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        {c}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="space-y-2 col-span-2">
+                            <Label>Técnicas Disponibles</Label>
+                            <div className="flex flex-wrap gap-2">
+                                {TECNICAS.map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => toggleSelection(t, tecnicas, setTecnicas)}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${tecnicas.includes(t) ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'}`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Tallas (separadas por coma)</label>
-                        <Input value={form.tallas} onChange={e => setForm({ ...form, tallas: e.target.value })} />
-                    </div>
-
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Colores (separados por coma)</label>
-                        <Input value={form.colores} onChange={e => setForm({ ...form, colores: e.target.value })} />
-                    </div>
-
-                    <div className="space-y-1">
-                        <label className="text-sm font-medium">Técnicas (separadas por coma)</label>
-                        <Input value={form.tecnicas} onChange={e => setForm({ ...form, tecnicas: e.target.value })} placeholder="dtf,bordado,sublimado,llano" />
-                    </div>
-
-                    <div className="pt-4 flex gap-3 justify-end">
-                        <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
-                        <Button type="submit" className="bg-black text-white" disabled={loading}>
-                            {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-                            Crear Producto
+                    <div className="flex justify-end pt-4">
+                        <Button type="submit" disabled={loading || !imageUrl || !nombre || !categoria} className="bg-black hover:bg-gray-800 text-white w-full md:w-auto">
+                            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            Crear Producto Base
                         </Button>
                     </div>
                 </form>
-            </div>
-        </div>
-    )
+            </DialogContent>
+        </Dialog>
+    );
 }
