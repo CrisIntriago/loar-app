@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox"; // Need to create
 import { Loader2, ArrowLeft, CheckCircle } from "lucide-react";
 
-export default function CustomerForm({ cart, onSuccess, onBack }: { cart: any[], onSuccess: (details: any) => void, onBack: () => void }) {
+export default function CustomerForm({ cart, onSuccess, onBack, executionId }: { cart: any[], onSuccess: (details: any) => void, onBack: () => void, executionId?: string }) {
     const [nombre, setNombre] = useState("");
     const [whatsapp, setWhatsapp] = useState("");
     const [loading, setLoading] = useState(false);
@@ -61,12 +61,21 @@ export default function CustomerForm({ cart, onSuccess, onBack }: { cart: any[],
             } else {
                 // Success
                 const total = cart.reduce((sum, item) => sum + item.subtotal, 0);
-                onSuccess({
-                    nombre,
-                    whatsapp,
-                    total,
-                    orderCount: cart.length
-                });
+                const details = { nombre, whatsapp, total, orderCount: cart.length };
+
+                if (executionId) {
+                    fetch('/api/jelou-callback', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            executionId,
+                            success: true,
+                            data: details,
+                        }),
+                    }).catch(err => console.error('Jelou callback failed:', err));
+                }
+
+                onSuccess(details);
             }
 
         } catch (e) {

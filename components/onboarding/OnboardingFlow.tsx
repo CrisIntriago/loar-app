@@ -25,7 +25,7 @@ export type CartItem = {
     subtotal: number;
 };
 
-export default function OnboardingFlow({ initialProducts }: { initialProducts: any[] }) {
+export default function OnboardingFlow({ initialProducts, executionId }: { initialProducts: any[]; executionId?: string }) {
     const [step, setStep] = useState<'GRID' | 'CONFIG' | 'CART' | 'CUSTOMER' | 'SUCCESS'>('GRID');
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
     const [cart, setCart] = useState<CartItem[]>([]);
@@ -111,6 +111,7 @@ export default function OnboardingFlow({ initialProducts }: { initialProducts: a
                         cart={cart}
                         onSuccess={handleOrderSuccess}
                         onBack={() => setStep('CART')}
+                        executionId={executionId}
                     />
                 )}
 
