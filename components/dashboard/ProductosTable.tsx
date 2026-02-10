@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Edit2, Save, Trash2, Box } from "lucide-react";
+import { Edit2, Trash2, Box } from "lucide-react";
 import NuevoProductoModal from "./NuevoProductoModal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
