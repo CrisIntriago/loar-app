@@ -16,6 +16,8 @@ create table public.productos (
   colores text[] not null,       -- e.g. ['Blanco','Negro']
   stock integer default 0,
   precio_base decimal(10,2) not null,
+  precio_mayorista decimal(10,2), -- NUEVO: Precio para mayoristas
+  cantidad_mayorista integer default 6, -- NUEVO: Cantidad mínima para aplicar precio mayorista
   activo boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
@@ -34,6 +36,7 @@ create table public.pedidos (
   total decimal(10,2) not null,
   estado estado_pedido_enum default 'pendiente',
   comprobante_url text, -- opcional
+  diseno_url text, -- NUEVO: URL de la imagen de personalización
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
@@ -56,6 +59,11 @@ create table public.configuracion_webhook (
   webhook_url text not null,
   activo boolean default true
 );
+
+-- STORAGE (Conceptual SQL, might need to be run in dashboard)
+-- insert into storage.buckets (id, name) values ('disenos', 'disenos');
+-- create policy "Public Access" on storage.objects for select using ( bucket_id = 'disenos' );
+-- create policy "Public Upload" on storage.objects for insert with check ( bucket_id = 'disenos' );
 
 -- ENABLE RLS
 alter table public.productos enable row level security;

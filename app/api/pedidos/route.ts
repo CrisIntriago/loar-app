@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         // 1. Validar producto y stock
         const { data: product, error: prodError } = await supabase
             .from('productos')
-            .select('stock, precio_base, nombre')
+            .select('stock, precio_base, nombre, precio_mayorista, cantidad_mayorista, producto_precios(cantidad_minima, cantidad_maxima, precio_unitario)')
             .eq('id', producto_id)
             .single();
 
@@ -38,8 +38,28 @@ export async function POST(request: Request) {
         }
 
         // 2. Calcular total (seguridad: calcular en servidor)
-        // Nota: body.total puede venir del cliente pero es mejor recalcular o validar
-        const totalCalculado = Number(product.precio_base) * Number(cantidad);
+        let precioUnitario = Number(product.precio_base);
+        const qty = Number(cantidad);
+
+        // Check tiered pricing first
+        if (product.producto_precios && product.producto_precios.length > 0) {
+            const matchingTier = product.producto_precios.find((p: any) =>
+                qty >= p.cantidad_minima &&
+                (p.cantidad_maxima === null || qty <= p.cantidad_maxima)
+            );
+
+            if (matchingTier) {
+                precioUnitario = Number(matchingTier.precio_unitario);
+            }
+        } else {
+            // Fallback to legacy fields
+            const cantidadMayorista = product.cantidad_mayorista || 6;
+            if (product.precio_mayorista && qty >= cantidadMayorista) {
+                precioUnitario = Number(product.precio_mayorista);
+            }
+        }
+
+        const totalCalculado = precioUnitario * qty;
 
         // 3. Crear pedido usando Admin Client (bypass RLS policies si es necesario para invitados)
         const admin = getSupabaseAdmin();

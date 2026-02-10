@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { X, Plus, Loader2 } from "lucide-react";
+import { X, Plus, Loader2, Trash2 } from "lucide-react";
 
 export default function NuevoProductoModal({ onCreated }: { onCreated: () => void }) {
     const [isOpen, setIsOpen] = useState(false);
@@ -20,6 +20,22 @@ export default function NuevoProductoModal({ onCreated }: { onCreated: () => voi
         tecnicas: "dtf,bordado"
     });
 
+    const [precios, setPrecios] = useState<{ min: string, max: string, precio: string }[]>([]);
+
+    const addPrecioRow = () => {
+        setPrecios([...precios, { min: "", max: "", precio: "" }]);
+    };
+
+    const updatePrecioRow = (index: number, field: 'min' | 'max' | 'precio', value: string) => {
+        const newPrecios = [...precios];
+        newPrecios[index][field] = value;
+        setPrecios(newPrecios);
+    };
+
+    const removePrecioRow = (index: number) => {
+        setPrecios(precios.filter((_, i) => i !== index));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -30,7 +46,12 @@ export default function NuevoProductoModal({ onCreated }: { onCreated: () => voi
                 stock: parseInt(form.stock),
                 tallas: form.tallas.split(',').map(s => s.trim()),
                 colores: form.colores.split(',').map(s => s.trim()),
-                tecnicas: form.tecnicas.split(',').map(s => s.trim())
+                tecnicas: form.tecnicas.split(',').map(s => s.trim()),
+                precios: precios.filter(p => p.min && p.precio).map(p => ({
+                    cantidad_minima: parseInt(p.min),
+                    cantidad_maxima: p.max ? parseInt(p.max) : null,
+                    precio_unitario: parseFloat(p.precio)
+                }))
             };
 
             const res = await fetch('/api/inventario', {
@@ -42,7 +63,8 @@ export default function NuevoProductoModal({ onCreated }: { onCreated: () => voi
             if (res.ok) {
                 setIsOpen(false);
                 onCreated();
-                setForm({ nome: "", categoria: "camiseta", precio_base: "", stock: "", tallas: "S,M,L,XL", colores: "Blanco,Negro", tecnicas: "dtf,bordado" } as any);
+                setForm({ nombre: "", categoria: "camiseta", precio_base: "", stock: "", tallas: "S,M,L,XL", colores: "Blanco,Negro", tecnicas: "dtf,bordado" });
+                setPrecios([]);
             } else {
                 alert("Error al crear");
             }
@@ -89,6 +111,64 @@ export default function NuevoProductoModal({ onCreated }: { onCreated: () => voi
                         <div className="space-y-1">
                             <label className="text-sm font-medium">Stock Inicial</label>
                             <Input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} required />
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-sm font-bold text-gray-700">Precios Mayoristas (Escalas)</h3>
+                            <Button type="button" variant="outline" size="sm" onClick={addPrecioRow} className="h-7 text-xs">+ Agregar</Button>
+                        </div>
+
+                        <div className="space-y-2">
+                            {precios.length > 0 && (
+                                <div className="grid grid-cols-12 gap-2 text-xs font-bold text-gray-500 px-1">
+                                    <div className="col-span-3">Min</div>
+                                    <div className="col-span-3">Max</div>
+                                    <div className="col-span-4">Precio</div>
+                                    <div className="col-span-2"></div>
+                                </div>
+                            )}
+                            {precios.map((p, i) => (
+                                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                                    <div className="col-span-3">
+                                        <Input
+                                            type="number"
+                                            value={p.min}
+                                            onChange={e => updatePrecioRow(i, 'min', e.target.value)}
+                                            placeholder="Min"
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <Input
+                                            type="number"
+                                            value={p.max}
+                                            onChange={e => updatePrecioRow(i, 'max', e.target.value)}
+                                            placeholder="Inf"
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="col-span-4">
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            value={p.precio}
+                                            onChange={e => updatePrecioRow(i, 'precio', e.target.value)}
+                                            placeholder="$"
+                                            className="h-8 text-xs"
+                                        />
+                                    </div>
+                                    <div className="col-span-2 text-right">
+                                        <Button type="button" variant="ghost" size="icon" onClick={() => removePrecioRow(i)} className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600">
+                                            <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                            {precios.length === 0 && (
+                                <p className="text-xs text-gray-400 italic text-center py-2">No hay escalas definidas.</p>
+                            )}
                         </div>
                     </div>
 

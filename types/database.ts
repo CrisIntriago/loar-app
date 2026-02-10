@@ -19,6 +19,8 @@ export interface Database {
           colores: string[]
           stock: number
           precio_base: number
+          precio_mayorista: number | null
+          cantidad_mayorista: number
           activo: boolean
           created_at: string
           updated_at: string
@@ -32,6 +34,8 @@ export interface Database {
           colores: string[]
           stock?: number
           precio_base: number
+          precio_mayorista?: number | null
+          cantidad_mayorista?: number
           activo?: boolean
           created_at?: string
           updated_at?: string
@@ -45,6 +49,8 @@ export interface Database {
           colores?: string[]
           stock?: number
           precio_base?: number
+          precio_mayorista?: number | null
+          cantidad_mayorista?: number
           activo?: boolean
           created_at?: string
           updated_at?: string
@@ -63,6 +69,7 @@ export interface Database {
           total: number
           estado: 'pendiente' | 'pagado' | 'en_produccion' | 'entregado' | 'cancelado'
           comprobante_url: string | null
+          diseno_url: string | null
           created_at: string
           updated_at: string
         }
@@ -78,6 +85,7 @@ export interface Database {
           total: number
           estado?: 'pendiente' | 'pagado' | 'en_produccion' | 'entregado' | 'cancelado'
           comprobante_url?: string | null
+          diseno_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -93,6 +101,7 @@ export interface Database {
           total?: number
           estado?: 'pendiente' | 'pagado' | 'en_produccion' | 'entregado' | 'cancelado'
           comprobante_url?: string | null
+          diseno_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -124,6 +133,29 @@ export interface Database {
           entidad_id?: string | null
           detalles?: Json
           created_at?: string
+        }
+      }
+      producto_precios: {
+        Row: {
+          id: string
+          producto_id: string
+          cantidad_minima: number
+          cantidad_maxima: number | null
+          precio_unitario: number
+        }
+        Insert: {
+          id?: string
+          producto_id: string
+          cantidad_minima: number
+          cantidad_maxima?: number | null
+          precio_unitario: number
+        }
+        Update: {
+          id?: string
+          producto_id?: string
+          cantidad_minima?: number
+          cantidad_maxima?: number | null
+          precio_unitario?: number
         }
       }
       configuracion_webhook: {

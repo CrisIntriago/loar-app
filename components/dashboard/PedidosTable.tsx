@@ -5,7 +5,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Check, Clock, Loader2, X, AlertCircle } from "lucide-react";
+import { Check, Clock, Loader2, X, AlertCircle, Paperclip } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -21,6 +21,7 @@ interface Pedido {
     talla: string;
     color: string;
     tecnica: string;
+    diseno_url?: string;
 }
 
 export default function PedidosTable({ initialPedidos }: { initialPedidos: any[] }) {
@@ -114,20 +115,31 @@ export default function PedidosTable({ initialPedidos }: { initialPedidos: any[]
                                     </div>
                                 </TableCell>
                                 <TableCell className="text-xs">
-                                    <div className="flex gap-1 flex-wrap max-w-[200px]">
+                                    <div className="flex gap-1 flex-wrap max-w-[200px] items-center">
                                         <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">x{p.cantidad}</span>
                                         <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.talla}</span>
                                         <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.color}</span>
                                         <span className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{p.tecnica}</span>
+                                        {p.diseno_url && (
+                                            <a
+                                                href={p.diseno_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ml-1 p-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                                                title="Ver diseño adjunto"
+                                            >
+                                                <Paperclip className="w-3 h-3" />
+                                            </a>
+                                        )}
                                     </div>
                                 </TableCell>
                                 <TableCell className="font-black">${Number(p.total).toFixed(2)}</TableCell>
                                 <TableCell>
                                     <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${p.estado === 'pendiente' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
-                                            p.estado === 'pagado' ? 'bg-green-50 text-green-700 border-green-200' :
-                                                p.estado === 'en_produccion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                                                    p.estado === 'entregado' ? 'bg-gray-50 text-gray-700 border-gray-200' :
-                                                        'bg-red-50 text-red-700 border-red-200'
+                                        p.estado === 'pagado' ? 'bg-green-50 text-green-700 border-green-200' :
+                                            p.estado === 'en_produccion' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                p.estado === 'entregado' ? 'bg-gray-50 text-gray-700 border-gray-200' :
+                                                    'bg-red-50 text-red-700 border-red-200'
                                         }`}>
                                         {p.estado.replace('_', ' ')}
                                     </span>

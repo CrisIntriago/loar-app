@@ -6,7 +6,7 @@ export async function GET() {
     try {
         const { data, error } = await supabase
             .from('productos')
-            .select('*')
+            .select('*, producto_precios(id, cantidad_minima, cantidad_maxima, precio_unitario)')
             .eq('activo', true)
             .order('nombre');
 
@@ -20,21 +20,37 @@ export async function GET() {
 // POST: Crear nuevo producto (Admin)
 export async function POST(request: Request) {
     try {
-        // TODO: Validate admin session
         const body = await request.json();
+        const { precios, ...productData } = body;
         const admin = getSupabaseAdmin();
 
         const { data: producto, error } = await admin
             .from('productos')
-            .insert(body)
+            .insert(productData)
             .select()
             .single();
 
         if (error) throw error;
 
+        // Insertar precios si existen
+        if (precios && Array.isArray(precios) && precios.length > 0) {
+            const preciosPayload = precios.map((p: any) => ({
+                producto_id: producto.id,
+                cantidad_minima: parseInt(p.cantidad_minima),
+                cantidad_maxima: p.cantidad_maxima ? parseInt(p.cantidad_maxima) : null,
+                precio_unitario: parseFloat(p.precio_unitario)
+            }));
+
+            const { error: preciosError } = await admin
+                .from('producto_precios')
+                .insert(preciosPayload);
+
+            if (preciosError) console.error("Error insertando precios", preciosError);
+        }
+
         // Historial
         await admin.from('historial_acciones').insert({
-            usuario_id: 'admin_user', // Placeholder
+            usuario_id: 'admin_user',
             accion: 'creo_producto',
             entidad_tipo: 'producto',
             entidad_id: producto.id,
