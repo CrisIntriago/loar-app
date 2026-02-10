@@ -11,6 +11,7 @@ export default async function InventarioPage() {
         const { data, error } = await admin
             .from('productos')
             .select('*, producto_precios(cantidad_minima, cantidad_maxima, precio_unitario)')
+            .eq('activo', true)
             .order('nombre');
 
         if (!error && data) {

@@ -61,10 +61,12 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
         // Let's do HARD DELETE for simplicity if no orders attached, or SOFT DELETE otherwise.
         // For now, let's implement SOFT DELETE by setting active=false.
 
-        const { error } = await admin
+        const { data, error } = await admin
             .from('productos')
             .update({ activo: false })
-            .eq('id', id);
+            .eq('id', id)
+            .select()
+            .single();
 
         // Wait, schema says 'activo', let's use 'activo'.
 
@@ -75,10 +77,11 @@ export async function DELETE(request: Request, { params }: { params: { id: strin
             usuario_id: 'admin_user',
             accion: 'elimino',
             entidad_tipo: 'producto',
-            entidad_id: id
+            entidad_id: id,
+            detalles: { producto: data.nombre }
         });
 
-        return NextResponse.json({ success: true });
+        return NextResponse.json(data);
     } catch (e: any) {
         return NextResponse.json({ error: e.message }, { status: 500 });
     }
