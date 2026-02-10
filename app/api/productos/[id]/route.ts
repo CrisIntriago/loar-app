@@ -26,9 +26,21 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         const body = await request.json();
         const admin = getSupabaseAdmin();
 
+        // Destructure only allowed fields to prevent injection
+        const { nombre, descripcion, categoria, tallas, colores, tecnicas, imagen_url } = body;
+
         const { data, error } = await admin
             .from('productos')
-            .update({ ...body, updated_at: new Date().toISOString() })
+            .update({
+                nombre,
+                descripcion,
+                categoria,
+                tallas,
+                colores,
+                tecnicas,
+                imagen_url,
+                updated_at: new Date().toISOString()
+            })
             .eq('id', params.id)
             .select()
             .single();
@@ -37,10 +49,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
         await admin.from('historial_acciones').insert({
             usuario_id: 'admin',
-            accion: 'actualizo_producto', // New enum potentially
+            accion: 'actualizo_producto',
             entidad_tipo: 'producto',
             entidad_id: params.id,
-            detalles: body
+            detalles: { nombre, categoria, updated_at: new Date() }
         });
 
         return NextResponse.json(data);

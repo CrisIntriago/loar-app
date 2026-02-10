@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Loader2, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Loader2, Image as ImageIcon, Save } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const TALLAS = ["S", "M", "L", "XL", "XXL", "Única"];
