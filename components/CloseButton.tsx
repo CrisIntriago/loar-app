@@ -13,6 +13,13 @@ export default function CloseButton({ executionId }: { executionId?: string }) {
                 }),
             }).catch(err => console.error('Jelou callback failed:', err));
         }
+        // Cerrar webview nativo
+        if ((window as any).Android) {
+            (window as any).Android.close();
+        }
+        if ((window as any).webkit?.messageHandlers?.closeHandler) {
+            (window as any).webkit.messageHandlers.closeHandler.postMessage("close");
+        }
         window.close();
     };
 
