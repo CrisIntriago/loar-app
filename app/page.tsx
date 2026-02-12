@@ -1,4 +1,5 @@
 import OnboardingFlow from "@/components/onboarding/OnboardingFlow";
+import CloseButton from "@/components/CloseButton";
 import { supabase } from "@/lib/supabase";
 
 export const dynamic = 'force-dynamic';
@@ -18,6 +19,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ e
 
   return (
     <main className="min-h-screen bg-gray-50">
+      <div className="p-2 sm:p-4">
+        <CloseButton executionId={executionId} />
+      </div>
       <OnboardingFlow initialProducts={products || []} executionId={executionId} />
     </main>
   );
