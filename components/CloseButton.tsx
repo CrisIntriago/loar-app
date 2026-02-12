@@ -13,6 +13,7 @@ export default function CloseButton({ executionId }: { executionId?: string }) {
                 }),
             }).catch(err => console.error('Jelou callback failed:', err));
         }
+        window.close();
     };
 
     return (
