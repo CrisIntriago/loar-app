@@ -1,19 +1,7 @@
 "use client";
 
 export default function CloseButton({ executionId }: { executionId?: string }) {
-    const handleClose = () => {
-        if (executionId) {
-            fetch('/api/jelou-callback', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    executionId,
-                    success: true,
-                    data: { closed: true },
-                }),
-            }).catch(err => console.error('Jelou callback failed:', err));
-        }
-        // Cerrar webview nativo
+    const closeWebView = () => {
         if ((window as any).Android) {
             (window as any).Android.close();
         }
@@ -21,6 +9,25 @@ export default function CloseButton({ executionId }: { executionId?: string }) {
             (window as any).webkit.messageHandlers.closeHandler.postMessage("close");
         }
         window.close();
+    };
+
+    const handleClose = async () => {
+        if (executionId) {
+            try {
+                await fetch('/api/jelou-callback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        executionId,
+                        success: true,
+                        data: { closed: true },
+                    }),
+                });
+            } catch (err) {
+                console.error('Jelou callback failed:', err);
+            }
+        }
+        closeWebView();
     };
 
     return (
