@@ -2,7 +2,7 @@
 
 export default function CloseButton({ executionId }: { executionId?: string }) {
     const closeWebView = () => {
-        window.location.href = "https://wa.me";
+        window.location.href = "https://wa.me/13239183195";
     };
 
     const handleClose = async () => {
